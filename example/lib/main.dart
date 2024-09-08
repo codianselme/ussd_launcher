@@ -69,9 +69,9 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
           TextField(
             controller: _controller,
             decoration: const InputDecoration(
-              labelText: 'Enter USSD Code', 
+              labelText: 'Enter USSD Code',
               hintText: 'e.g. *880#',
-              ),
+            ),
           ),
           const SizedBox(height: 16),
           ElevatedButton(
@@ -150,6 +150,17 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
     _printOptionControllers();
   }
 
+  // Supprime le dernier champ d'option
+  void _removeOptionField() {
+    if (_optionControllers.isNotEmpty) {
+      setState(() {
+        _optionControllers.last
+            .dispose(); // Libère les ressources du contrôleur
+        _optionControllers.removeLast();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -176,9 +187,19 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
                   ),
                 )),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _addOptionField,
-              child: const Text('Add Option Field'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: _addOptionField,
+                  child: const Text('Add Option'),
+                ),
+                ElevatedButton(
+                  onPressed:
+                      _optionControllers.isNotEmpty ? _removeOptionField : null,
+                  child: const Text('Remove Option'),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ElevatedButton(
