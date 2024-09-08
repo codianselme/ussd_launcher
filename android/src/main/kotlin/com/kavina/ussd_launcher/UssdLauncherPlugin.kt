@@ -1,38 +1,50 @@
 package com.kavina.ussd_launcher
 
-import android.Manifest
 import android.accessibilityservice.AccessibilityService
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.telecom.TelecomManager
 import android.view.accessibility.AccessibilityEvent
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import android.view.accessibility.AccessibilityNodeInfo
+import androidx.annotation.RequiresApi
 import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.embedding.engine.plugins.activity.ActivityAware
-import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import java.util.ArrayDeque
 
-class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
+class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
     private lateinit var channel : MethodChannel
-    private lateinit var context: Context
-    private var activity: android.app.Activity? = null
+    private lateinit var context: android.content.Context
+    private var isMultiSession = false
+    private var pendingResult: Result? = null
 
     companion object {
-        lateinit var flutterChannel: MethodChannel
+        private var instance: UssdLauncherPlugin? = null
+
+        fun getInstance(): UssdLauncherPlugin? {
+            return instance
+        }
+
+        fun onUssdResult(message: String) {
+            Handler(Looper.getMainLooper()).post {
+                getInstance()?.pendingResult?.success(message)
+                getInstance()?.pendingResult = null
+            }
+        }
     }
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "ussd_launcher")
-        flutterChannel = channel
         channel.setMethodCallHandler(this)
         context = flutterPluginBinding.applicationContext
+        instance = this
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -45,44 +57,86 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
                     result.error("INVALID_ARGUMENT", "USSD code is required", null)
                 }
             }
-            "openAccessibilitySettings" -> {
-                openAccessibilitySettings()
-                result.success(null)
+            "multisessionUssd" -> {
+                val ussdCode = call.argument<String>("ussdCode")
+                val subscriptionId = call.argument<Int>("subscriptionId") ?: -1
+                if (ussdCode != null) {
+                    multisessionUssd(ussdCode, subscriptionId, result)
+                } else {
+                    result.error("INVALID_ARGUMENT", "USSD code is required", null)
+                }
+            }
+            "sendMessage" -> {
+                val message = call.argument<String>("message")
+                if (message != null) {
+                    sendMessage(message, result)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Message is required", null)
+                }
+            }
+            "cancelSession" -> {
+                cancelSession(result)
             }
             "isAccessibilityPermissionEnabled" -> {
                 result.success(isAccessibilityServiceEnabled())
+            }
+            "openAccessibilitySettings" -> {
+                openAccessibilitySettings()
+                result.success(null)
             }
             else -> result.notImplemented()
         }
     }
 
     private fun launchUssd(ussdCode: String, result: Result) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(activity!!, arrayOf(Manifest.permission.CALL_PHONE), 1)
-                result.error("PERMISSION_DENIED", "Call phone permission is required", null)
-                return
-            }
-        }
-
-        if (!isAccessibilityServiceEnabled()) {
-            result.error("ACCESSIBILITY_SERVICE_DISABLED", "Accessibility service is not enabled", null)
-            return
-        }
-
-        val formattedUssdCode = ussdCode.replace("#", Uri.encode("#"))
-        val ussdUri = Uri.parse("tel:$formattedUssdCode")
+        isMultiSession = false
+        val ussdUri = formatUssdCode(ussdCode)
         val intent = Intent(Intent.ACTION_CALL, ussdUri)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         context.startActivity(intent)
+        result.success(null)
+    }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun multisessionUssd(ussdCode: String, subscriptionId: Int, result: Result) {
+        println("Launching multi-session USSD: $ussdCode")
+        isMultiSession = true
+        pendingResult = result
+        val ussdUri = formatUssdCode(ussdCode)
+        val telecomManager = context.getSystemService(android.content.Context.TELECOM_SERVICE) as TelecomManager
+        telecomManager.placeCall(ussdUri, null)
+    }
+
+    private fun sendMessage(message: String, result: Result) {
+        println("Sending message: $message")
+        if (!isMultiSession) {
+            result.error("INVALID_STATE", "Not in a multi-session USSD dialog", null)
+            return
+        }
+        pendingResult = result
+        UssdAccessibilityService.sendReply(message)
+    }
+
+    private fun formatUssdCode(ussdCode: String): Uri {
+        var formattedCode = ussdCode
+        if (!formattedCode.startsWith("tel:")) {
+            formattedCode = "tel:$formattedCode"
+        }
+        formattedCode = formattedCode.replace("#", Uri.encode("#"))
+        return Uri.parse(formattedCode)
+    }
+
+    private fun cancelSession(result: Result) {
+        isMultiSession = false
+        pendingResult = null
+        UssdAccessibilityService.cancelSession()
         result.success(null)
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
         val accessibilityEnabled = Settings.Secure.getInt(
             context.contentResolver,
-            Settings.Secure.ACCESSIBILITY_ENABLED
+            Settings.Secure.ACCESSIBILITY_ENABLED, 0
         )
         if (accessibilityEnabled == 1) {
             val service = "${context.packageName}/${UssdAccessibilityService::class.java.canonicalName}"
@@ -103,39 +157,143 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
-    }
-
-    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-        activity = binding.activity
-    }
-
-    override fun onDetachedFromActivityForConfigChanges() {
-        activity = null
-    }
-
-    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-        activity = binding.activity
-    }
-
-    override fun onDetachedFromActivity() {
-        activity = null
+        instance = null
     }
 }
 
 class UssdAccessibilityService : AccessibilityService() {
+    companion object {
+        private var instance: UssdAccessibilityService? = null
+        private var pendingMessage: String? = null
+
+        fun sendReply(message: String) {
+            println("Setting pending message: $message")
+            pendingMessage = message
+            instance?.performReply()
+        }
+
+        fun cancelSession() {
+            instance?.let { service ->
+                val rootInActiveWindow = service.rootInActiveWindow
+                val cancelButton = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("android:id/button2")
+                cancelButton?.firstOrNull()?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+        }
+    }
+
+    private fun performReply() {
+        val message = pendingMessage ?: return
+        println("Performing reply with message: $message")
+        
+        val rootInActiveWindow = this.rootInActiveWindow ?: return
+        println("Root in active window: $rootInActiveWindow")
+
+        // Chercher le champ de saisie
+        val editText = findInputField(rootInActiveWindow)
+        
+        if (editText != null) {
+            // Insérer le texte
+            val bundle = Bundle()
+            bundle.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+            val setTextSuccess = editText.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
+            println("Set text action performed: $setTextSuccess")
+
+            // Chercher et cliquer sur le bouton de confirmation
+            val button = findConfirmButton(rootInActiveWindow)
+            if (button != null) {
+                val clickSuccess = button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                println("Click action performed: $clickSuccess")
+            } else {
+                println("Confirm button not found")
+            }
+        } else {
+            println("Input field not found")
+        }
+
+        pendingMessage = null
+    }
+
+    private fun findInputField(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val editTexts = findNodesByClassName(root, "android.widget.EditText")
+        return editTexts.firstOrNull()
+    }
+
+    private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val buttons = findNodesByClassName(root, "android.widget.Button")
+        return buttons.firstOrNull { it.text?.toString()?.toLowerCase() in listOf("send", "ok", "submit") }
+    }
+
+    private fun findNodesByClassName(root: AccessibilityNodeInfo?, className: String): List<AccessibilityNodeInfo> {
+        val result = mutableListOf<AccessibilityNodeInfo>()
+        if (root == null) return result
+
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            if (node.className?.toString() == className) {
+                result.add(node)
+            }
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) {
+                    queue.add(child)
+                }
+            }
+        }
+
+        return result
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && event.className == "android.app.AlertDialog") {
+        println("Accessibility event received: ${event.eventType}")
+        println("Event source: ${event.source}")
+        println("Event class name: ${event.className}")
+        println("Event package name: ${event.packageName}")
+        println("Event text: ${event.text}")
+        
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
             val nodeInfo = event.source
             if (nodeInfo != null) {
-                val dialogText = nodeInfo.findAccessibilityNodeInfosByViewId("android:id/message")
-                if (dialogText.isNotEmpty()) {
-                    val ussdMessage = dialogText[0].text.toString()
-                    UssdLauncherPlugin.flutterChannel.invokeMethod("onUssdMessageReceived", ussdMessage)
+                println("Node info: ${nodeInfo.className}")
+                println("Node text: ${nodeInfo.text}")
+                val ussdMessage = findUssdMessage(nodeInfo)
+                println("Potential USSD message: $ussdMessage")
+                if (ussdMessage != null) {
+                    UssdLauncherPlugin.onUssdResult(ussdMessage)
                 }
+                
+                // Tenter d'insérer le message en attente, s'il y en a un
+                if (pendingMessage != null) {
+                    performReply()
+                }
+                
                 nodeInfo.recycle()
             }
         }
     }
 
+    private fun findUssdMessage(node: AccessibilityNodeInfo): String? {
+        if (node.childCount == 0) {
+            return node.text?.toString()
+        }
+        for (i in 0 until node.childCount) {
+            val childNode = node.getChild(i)
+            val message = findUssdMessage(childNode)
+            if (message != null) {
+                return message
+            }
+        }
+        return null
+    }
+
     override fun onInterrupt() {}
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+        println("UssdAccessibilityService connected")
+    }
 }
