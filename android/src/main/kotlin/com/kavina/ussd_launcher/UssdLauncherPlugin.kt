@@ -47,6 +47,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
             return instance
         }
 
+        // Appelé lorsqu'un résultat USSD est reçu
         fun onUssdResult(message: String) {
             Handler(Looper.getMainLooper()).post {
                 getInstance()?.pendingResult?.success(message)
@@ -55,6 +56,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         }
     }
 
+    // Initialisation du plugin
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "ussd_launcher")
         channel.setMethodCallHandler(this)
@@ -62,16 +64,9 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         instance = this
     }
 
+    // Gestion des appels de méthode depuis Flutter
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
-            // "launchUssd" -> {
-            //     val ussdCode = call.argument<String>("ussdCode")
-            //     if (ussdCode != null) {
-            //         launchUssd(ussdCode, result)
-            //     } else {
-            //         result.error("INVALID_ARGUMENT", "USSD code is required", null)
-            //     }
-            // }
             "sendUssdRequest" -> {
                 val ussdCode = call.argument<String>("ussdCode")
                 val subscriptionId = call.argument<Int>("subscriptionId") ?: -1
@@ -112,6 +107,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         }
     }
 
+    // Envoie une requête USSD
     private fun sendUssdRequest(ussdCode: String, subscriptionId: Int, result: MethodChannel.Result) {
         val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
 
@@ -160,6 +156,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
     }
     
 
+    // Lance une session USSD multi-étapes
     @RequiresApi(Build.VERSION_CODES.O)
     private fun multisessionUssd(ussdCode: String, subscriptionId: Int, result: Result) {
         println("Launching multi-session USSD: $ussdCode")
@@ -170,6 +167,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         telecomManager.placeCall(ussdUri, null)
     }
 
+    // Envoie un message dans une session USSD multi-étapes
     private fun sendMessage(message: String, result: Result) {
         println("Sending message: $message")
         if (!isMultiSession) {
@@ -180,6 +178,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         UssdAccessibilityService.sendReply(message)
     }
 
+    // Formate le code USSD
     private fun formatUssdCode(ussdCode: String): Uri {
         var formattedCode = ussdCode
         if (!formattedCode.startsWith("tel:")) {
@@ -189,6 +188,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         return Uri.parse(formattedCode)
     }
 
+    // Annule la session USSD en cours
     private fun cancelSession(result: Result) {
         isMultiSession = false
         pendingResult = null
@@ -196,6 +196,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         result.success(null)
     }
 
+    // Vérifie si le service d'accessibilité est activé
     private fun isAccessibilityServiceEnabled(): Boolean {
         val accessibilityEnabled = Settings.Secure.getInt(
             context.contentResolver,
@@ -212,6 +213,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         return false
     }
 
+    // Ouvre les paramètres d'accessibilité
     private fun openAccessibilitySettings() {
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -229,12 +231,14 @@ class UssdAccessibilityService : AccessibilityService() {
         private var instance: UssdAccessibilityService? = null
         private var pendingMessage: String? = null
 
+        // Envoie une réponse dans la session USSD
         fun sendReply(message: String) {
             println("Setting pending message: $message")
             pendingMessage = message
             instance?.performReply()
         }
 
+        // Annule la session USSD
         fun cancelSession() {
             instance?.let { service ->
                 val rootInActiveWindow = service.rootInActiveWindow
@@ -244,6 +248,7 @@ class UssdAccessibilityService : AccessibilityService() {
         }
     }
 
+    // Effectue la réponse dans la session USSD
     private fun performReply() {
         val message = pendingMessage ?: return
         println("Performing reply with message: $message")
@@ -277,12 +282,14 @@ class UssdAccessibilityService : AccessibilityService() {
         pendingMessage = null
     }
 
+    // Trouve le champ de saisie dans l'interface USSD
     private fun findInputField(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val editTexts = findNodesByClassName(root, "android.widget.EditText")
         return editTexts.firstOrNull()
     }
 
 
+    // Trouve le bouton de confirmation dans l'interface USSD
     private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val buttons = findNodesByClassName(root, "android.widget.Button")
         return buttons.firstOrNull { 
@@ -290,6 +297,7 @@ class UssdAccessibilityService : AccessibilityService() {
         }
     }
 
+    // Essaie des méthodes alternatives pour confirmer l'action USSD
     private fun tryAlternativeConfirmMethods(root: AccessibilityNodeInfo) {
         // Méthode 1: Essayer de cliquer sur tous les boutons
         val allButtons = findNodesByClassName(root, "android.widget.Button")
@@ -325,6 +333,7 @@ class UssdAccessibilityService : AccessibilityService() {
         println("Dispatched Enter key event: $dispatchSuccess")
     }
 
+    // Trouve tous les nœuds cliquables dans l'interface
     private fun findClickableNodes(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
         val result = mutableListOf<AccessibilityNodeInfo>()
         val queue = ArrayDeque<AccessibilityNodeInfo>()
@@ -343,6 +352,7 @@ class UssdAccessibilityService : AccessibilityService() {
         return result
     }
 
+    // Trouve tous les nœuds d'une classe spécifique dans l'interface
     private fun findNodesByClassName(root: AccessibilityNodeInfo?, className: String): List<AccessibilityNodeInfo> {
         val result = mutableListOf<AccessibilityNodeInfo>()
         if (root == null) return result
@@ -365,6 +375,7 @@ class UssdAccessibilityService : AccessibilityService() {
         return result
     }
 
+    // Gère les événements d'accessibilité
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         println("Accessibility event received: ${event.eventType}")
         println("Event source: ${event.source}")
@@ -394,6 +405,7 @@ class UssdAccessibilityService : AccessibilityService() {
         }
     }
 
+    // Trouve le message USSD dans l'interface
     private fun findUssdMessage(node: AccessibilityNodeInfo): String? {
         if (node.childCount == 0) {
             return node.text?.toString()
@@ -410,6 +422,7 @@ class UssdAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {}
 
+    // Appelé lorsque le service d'accessibilité est connecté
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this

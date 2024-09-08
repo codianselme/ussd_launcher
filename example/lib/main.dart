@@ -45,26 +45,10 @@ class SingleSessionTab extends StatefulWidget {
 
 class _SingleSessionTabState extends State<SingleSessionTab> {
   final TextEditingController _controller = TextEditingController();
-  // String _dialogText = '';
   String _ussdResponse = '';
-
-  // void _launchUssd() async {
-  //   print(
-  //       '----------------Launching single session USSD with code: ${_controller.text}');
-  //   try {
-  //     await UssdLauncher.launchUssd(_controller.text);
-  //     print('----------------Single session USSD launched successfully');
-  //   } catch (e) {
-  //     print('----------------Error launching single session USSD: $e');
-  //     setState(() {
-  //       _dialogText = 'Error: ${e.toString()}';
-  //     });
-  //   }
-  // }
 
   Future<void> _sendUssdRequest() async {
     try {
-      // final response = await _singleSessionUssd.sendUssdRequest(_ussdController.text);
       final response = await UssdLauncher.launchUssd(_controller.text);
       setState(() {
         _ussdResponse = response;
@@ -92,12 +76,10 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _sendUssdRequest,
-            //onPressed: _launchUssd,
             child: const Text('Launch Single Session USSD'),
           ),
           const SizedBox(height: 16),
           const Text('USSD Response:'),
-          // Text(_dialogText),
           Text(_ussdResponse),
         ],
       ),

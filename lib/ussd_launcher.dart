@@ -1,17 +1,10 @@
 import 'package:flutter/services.dart';
 
 class UssdLauncher {
+  // Canal de méthode pour communiquer avec le code natif
   static const MethodChannel _channel = MethodChannel('ussd_launcher');
 
-  // static Future<void> launchUssd(String ussdCode) async {
-  //   try {
-  //     await _channel.invokeMethod('launchUssd', {'ussdCode': ussdCode});
-  //   } on PlatformException catch (e) {
-  //     print("Failed to launch USSD: '${e.message}'.");
-  //     rethrow;
-  //   }
-  // }
-
+  // Lance une requête USSD en session unique
   static Future<String> launchUssd(String ussdCode, {int subscriptionId = -1}) async {
     try {
       final String response = await _channel.invokeMethod('sendUssdRequest', { 
@@ -24,6 +17,7 @@ class UssdLauncher {
     }
   }
 
+  // Lance une session USSD multi-étapes
   static Future<String?> multisessionUssd({required String code, int subscriptionId = -1}) async {
     try {
       final String? result = await _channel.invokeMethod('multisessionUssd', {
@@ -37,6 +31,7 @@ class UssdLauncher {
     }
   }
 
+  // Envoie un message/une commande dans une session USSD multi-étapes
   static Future<String?> sendMessage(String message) async {
     try {
       final String? result = await _channel.invokeMethod('sendMessage', {'message': message});
@@ -47,6 +42,7 @@ class UssdLauncher {
     }
   }
 
+  // Annule la session USSD en cours
   static Future<void> cancelSession() async {
     try {
       await _channel.invokeMethod('cancelSession');
@@ -56,6 +52,7 @@ class UssdLauncher {
     }
   }
 
+  // Configure un écouteur pour les messages USSD reçus
   static void setUssdMessageListener(Function(String) listener) {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onUssdMessageReceived') {
@@ -65,6 +62,7 @@ class UssdLauncher {
     });
   }
 
+  // Vérifie si l'autorisation d'accessibilité est activée
   static Future<bool> isAccessibilityPermissionEnabled() async {
     try {
       final bool isEnabled = await _channel.invokeMethod('isAccessibilityPermissionEnabled');
@@ -75,6 +73,7 @@ class UssdLauncher {
     }
   }
 
+  // Ouvre les paramètres d'accessibilité
   static Future<void> openAccessibilitySettings() async {
     try {
       await _channel.invokeMethod('openAccessibilitySettings');
