@@ -111,7 +111,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
           await UssdLauncher.multisessionUssd(code: _ussdController.text);
       print('Initial USSD response (res1): $res1');
       setState(() {
-        _dialogText = 'Initial Response: $res1\n';
+        _dialogText = 'Initial Response: \n $res1';
       });
 
       // Attendre un peu avant d'envoyer la réponse
@@ -120,7 +120,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
       String? res2 = await UssdLauncher.sendMessage("1");
       print('USSD response after sending "1" (res2): $res2');
       setState(() {
-        _dialogText += 'Response after sending "1": $res2\n';
+        _dialogText += ' \n Response after sending "1": \n $res2';
       });
 
       print('Cancelling USSD session');
