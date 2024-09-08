@@ -18,6 +18,9 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import java.util.ArrayDeque
+import android.view.KeyEvent
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
 
 class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
     private lateinit var channel : MethodChannel
@@ -96,6 +99,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         context.startActivity(intent)
         result.success(null)
     }
+    
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun multisessionUssd(ussdCode: String, subscriptionId: Int, result: Result) {
@@ -181,6 +185,38 @@ class UssdAccessibilityService : AccessibilityService() {
         }
     }
 
+    // private fun performReply() {
+    //     val message = pendingMessage ?: return
+    //     println("Performing reply with message: $message")
+    //     
+    //     val rootInActiveWindow = this.rootInActiveWindow ?: return
+    //     println("Root in active window: $rootInActiveWindow")
+    // 
+    //     // Chercher le champ de saisie
+    //     val editText = findInputField(rootInActiveWindow)
+    //     
+    //     if (editText != null) {
+    //         // Insérer le texte
+    //         val bundle = Bundle()
+    //         bundle.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+    //         val setTextSuccess = editText.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
+    //         println("Set text action performed: $setTextSuccess")
+    // 
+    //         // Chercher et cliquer sur le bouton de confirmation
+    //         val button = findConfirmButton(rootInActiveWindow)
+    //         if (button != null) {
+    //             val clickSuccess = button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    //             println("Click action performed: $clickSuccess")
+    //         } else {
+    //             println("Confirm button not found")
+    //         }
+    //     } else {
+    //         println("Input field not found")
+    //     }
+    // 
+    //     pendingMessage = null
+    // }
+
     private fun performReply() {
         val message = pendingMessage ?: return
         println("Performing reply with message: $message")
@@ -204,7 +240,8 @@ class UssdAccessibilityService : AccessibilityService() {
                 val clickSuccess = button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 println("Click action performed: $clickSuccess")
             } else {
-                println("Confirm button not found")
+                println("Confirm button not found, trying alternative methods")
+                tryAlternativeConfirmMethods(rootInActiveWindow)
             }
         } else {
             println("Input field not found")
@@ -218,9 +255,69 @@ class UssdAccessibilityService : AccessibilityService() {
         return editTexts.firstOrNull()
     }
 
+    // private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+    //     val buttons = findNodesByClassName(root, "android.widget.Button")
+    //     return buttons.firstOrNull { it.text?.toString()?.toLowerCase() in listOf("send", "ok", "submit") }
+    // }
+
     private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val buttons = findNodesByClassName(root, "android.widget.Button")
-        return buttons.firstOrNull { it.text?.toString()?.toLowerCase() in listOf("send", "ok", "submit") }
+        return buttons.firstOrNull { 
+            it.text?.toString()?.toLowerCase() in listOf("send", "ok", "submit", "confirmer", "envoyer") 
+        }
+    }
+
+    private fun tryAlternativeConfirmMethods(root: AccessibilityNodeInfo) {
+        // Méthode 1: Essayer de cliquer sur tous les boutons
+        val allButtons = findNodesByClassName(root, "android.widget.Button")
+        for (button in allButtons) {
+            println("Attempting to click button: ${button.text}")
+            val clickSuccess = button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (clickSuccess) {
+                println("Successfully clicked button: ${button.text}")
+                return
+            }
+        }
+
+        // Méthode 2: Essayer de cliquer sur tous les éléments cliquables
+        val clickableNodes = findClickableNodes(root)
+        for (node in clickableNodes) {
+            println("Attempting to click node: ${node.className}")
+            val clickSuccess = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (clickSuccess) {
+                println("Successfully clicked node: ${node.className}")
+                return
+            }
+        }
+
+        // Méthode 3: Simuler un appui sur la touche "Entrée"
+        val enterKeyEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)
+        val dispatchSuccess = dispatchGesture(
+            GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(Path(), 0, 1))
+                .build(),
+            null,
+            null
+        )
+        println("Dispatched Enter key event: $dispatchSuccess")
+    }
+
+    private fun findClickableNodes(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
+        val result = mutableListOf<AccessibilityNodeInfo>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            if (node.isClickable) {
+                result.add(node)
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+
+        return result
     }
 
     private fun findNodesByClassName(root: AccessibilityNodeInfo?, className: String): List<AccessibilityNodeInfo> {

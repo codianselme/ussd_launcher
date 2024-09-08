@@ -157,23 +157,19 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
               decoration: const InputDecoration(labelText: 'Enter USSD Code'),
             ),
             const SizedBox(height: 16),
-            ..._optionControllers
-                .asMap()
-                .entries
-                .map((entry) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: TextField(
-                        controller: entry.value,
-                        decoration: InputDecoration(
-                            labelText: 'Enter Option ${entry.key + 1}'),
-                        onChanged: (value) {
-                          print(
-                              '----------------Option ${entry.key + 1} changed to: $value');
-                          _printOptionControllers();
-                        },
-                      ),
-                    ))
-                ,
+            ..._optionControllers.asMap().entries.map((entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: TextField(
+                    controller: entry.value,
+                    decoration: InputDecoration(
+                        labelText: 'Enter Option ${entry.key + 1}'),
+                    onChanged: (value) {
+                      print(
+                          '----------------Option ${entry.key + 1} changed to: $value');
+                      _printOptionControllers();
+                    },
+                  ),
+                )),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _addOptionField,
