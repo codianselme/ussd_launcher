@@ -22,8 +22,20 @@ import android.view.KeyEvent
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 
+import androidx.annotation.NonNull
+import android.content.Context
+import android.telephony.TelephonyManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+
+
+
 class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
     private lateinit var channel : MethodChannel
+    // private lateinit var singleSessionChannel: MethodChannel
+    // private lateinit var singleSessionUssd: SingleSessionUssd
+
     private lateinit var context: android.content.Context
     private var isMultiSession = false
     private var pendingResult: Result? = null
@@ -52,10 +64,19 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
-            "launchUssd" -> {
+            // "launchUssd" -> {
+            //     val ussdCode = call.argument<String>("ussdCode")
+            //     if (ussdCode != null) {
+            //         launchUssd(ussdCode, result)
+            //     } else {
+            //         result.error("INVALID_ARGUMENT", "USSD code is required", null)
+            //     }
+            // }
+            "sendUssdRequest" -> {
                 val ussdCode = call.argument<String>("ussdCode")
+                val subscriptionId = call.argument<Int>("subscriptionId") ?: -1
                 if (ussdCode != null) {
-                    launchUssd(ussdCode, result)
+                    sendUssdRequest(ussdCode, subscriptionId, result)
                 } else {
                     result.error("INVALID_ARGUMENT", "USSD code is required", null)
                 }
@@ -88,6 +109,44 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
                 result.success(null)
             }
             else -> result.notImplemented()
+        }
+    }
+
+    private fun sendUssdRequest(ussdCode: String, subscriptionId: Int, result: MethodChannel.Result) {
+        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val telephonyManager = if (subscriptionId != -1) {
+                context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                telephonyManager.createForSubscriptionId(subscriptionId)
+            } else {
+                context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            }
+
+            val callback = object : TelephonyManager.UssdResponseCallback() {
+                override fun onReceiveUssdResponse(telephonyManager: TelephonyManager, request: String, response: CharSequence) {
+                    result.success(response.toString())
+                }
+
+                override fun onReceiveUssdResponseFailed(telephonyManager: TelephonyManager, request: String, failureCode: Int) {
+                    when (failureCode) {
+                        TelephonyManager.USSD_RETURN_FAILURE -> result.error("USSD_FAILED", "USSD request failed", null)
+                        else -> result.error("UNKNOWN_ERROR", "Unknown error occurred", null)
+                    }
+                }
+            }
+
+            GlobalScope.launch(Dispatchers.Main) {
+                try {
+                    telephonyManager.sendUssdRequest(ussdCode, callback, null)
+                } catch (e: SecurityException) {
+                    result.error("PERMISSION_DENIED", "Permission denied: ${e.message}", null)
+                } catch (e: Exception) {
+                    result.error("UNEXPECTED_ERROR", "Unexpected error: ${e.message}", null)
+                }
+            }
+        } else {
+            result.error("UNSUPPORTED_VERSION", "USSD requests are not supported on this Android version", null)
         }
     }
 
@@ -185,38 +244,6 @@ class UssdAccessibilityService : AccessibilityService() {
         }
     }
 
-    // private fun performReply() {
-    //     val message = pendingMessage ?: return
-    //     println("Performing reply with message: $message")
-    //     
-    //     val rootInActiveWindow = this.rootInActiveWindow ?: return
-    //     println("Root in active window: $rootInActiveWindow")
-    // 
-    //     // Chercher le champ de saisie
-    //     val editText = findInputField(rootInActiveWindow)
-    //     
-    //     if (editText != null) {
-    //         // Insérer le texte
-    //         val bundle = Bundle()
-    //         bundle.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
-    //         val setTextSuccess = editText.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
-    //         println("Set text action performed: $setTextSuccess")
-    // 
-    //         // Chercher et cliquer sur le bouton de confirmation
-    //         val button = findConfirmButton(rootInActiveWindow)
-    //         if (button != null) {
-    //             val clickSuccess = button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-    //             println("Click action performed: $clickSuccess")
-    //         } else {
-    //             println("Confirm button not found")
-    //         }
-    //     } else {
-    //         println("Input field not found")
-    //     }
-    // 
-    //     pendingMessage = null
-    // }
-
     private fun performReply() {
         val message = pendingMessage ?: return
         println("Performing reply with message: $message")
@@ -255,10 +282,6 @@ class UssdAccessibilityService : AccessibilityService() {
         return editTexts.firstOrNull()
     }
 
-    // private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-    //     val buttons = findNodesByClassName(root, "android.widget.Button")
-    //     return buttons.firstOrNull { it.text?.toString()?.toLowerCase() in listOf("send", "ok", "submit") }
-    // }
 
     private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val buttons = findNodesByClassName(root, "android.widget.Button")
@@ -339,7 +362,6 @@ class UssdAccessibilityService : AccessibilityService() {
                 }
             }
         }
-
         return result
     }
 

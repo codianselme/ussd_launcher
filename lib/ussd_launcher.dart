@@ -3,12 +3,24 @@ import 'package:flutter/services.dart';
 class UssdLauncher {
   static const MethodChannel _channel = MethodChannel('ussd_launcher');
 
-  static Future<void> launchUssd(String ussdCode) async {
+  // static Future<void> launchUssd(String ussdCode) async {
+  //   try {
+  //     await _channel.invokeMethod('launchUssd', {'ussdCode': ussdCode});
+  //   } on PlatformException catch (e) {
+  //     print("Failed to launch USSD: '${e.message}'.");
+  //     rethrow;
+  //   }
+  // }
+
+  static Future<String> launchUssd(String ussdCode, {int subscriptionId = -1}) async {
     try {
-      await _channel.invokeMethod('launchUssd', {'ussdCode': ussdCode});
+      final String response = await _channel.invokeMethod('sendUssdRequest', { 
+        'ussdCode': ussdCode,
+        'subscriptionId': subscriptionId,
+      });
+      return response;
     } on PlatformException catch (e) {
-      print("Failed to launch USSD: '${e.message}'.");
-      rethrow;
+      throw Exception('Failed to send USSD request: ${e.message}');
     }
   }
 

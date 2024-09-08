@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ussd_launcher/ussd_launcher.dart';
 
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
               ],
             ),
           ),
-          body: TabBarView(
+          body: const TabBarView(
             children: [
               SingleSessionTab(),
               MultiSessionTab(),
@@ -44,18 +45,33 @@ class SingleSessionTab extends StatefulWidget {
 
 class _SingleSessionTabState extends State<SingleSessionTab> {
   final TextEditingController _controller = TextEditingController();
-  String _dialogText = '';
+  // String _dialogText = '';
+  String _ussdResponse = '';
 
-  void _launchUssd() async {
-    print(
-        '----------------Launching single session USSD with code: ${_controller.text}');
+  // void _launchUssd() async {
+  //   print(
+  //       '----------------Launching single session USSD with code: ${_controller.text}');
+  //   try {
+  //     await UssdLauncher.launchUssd(_controller.text);
+  //     print('----------------Single session USSD launched successfully');
+  //   } catch (e) {
+  //     print('----------------Error launching single session USSD: $e');
+  //     setState(() {
+  //       _dialogText = 'Error: ${e.toString()}';
+  //     });
+  //   }
+  // }
+
+  Future<void> _sendUssdRequest() async {
     try {
-      await UssdLauncher.launchUssd(_controller.text);
-      print('----------------Single session USSD launched successfully');
-    } catch (e) {
-      print('----------------Error launching single session USSD: $e');
+      // final response = await _singleSessionUssd.sendUssdRequest(_ussdController.text);
+      final response = await UssdLauncher.launchUssd(_controller.text);
       setState(() {
-        _dialogText = 'Error: ${e.toString()}';
+        _ussdResponse = response;
+      });
+    } catch (e) {
+      setState(() {
+        _ussdResponse = 'Error: ${e.toString()}';
       });
     }
   }
@@ -68,16 +84,21 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
         children: [
           TextField(
             controller: _controller,
-            decoration: const InputDecoration(labelText: 'Enter USSD Code'),
+            decoration: const InputDecoration(
+              labelText: 'Enter USSD Code', 
+              hintText: 'e.g. *880#',
+              ),
           ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: _launchUssd,
+            onPressed: _sendUssdRequest,
+            //onPressed: _launchUssd,
             child: const Text('Launch Single Session USSD'),
           ),
           const SizedBox(height: 16),
           const Text('USSD Response:'),
-          Text(_dialogText),
+          // Text(_dialogText),
+          Text(_ussdResponse),
         ],
       ),
     );
@@ -123,7 +144,9 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
         _dialogText += ' \n Response after sending "1": \n $res2';
       });
 
-      print('Cancelling USSD session');
+      if (kDebugMode) {
+        print('Cancelling USSD session');
+      }
       await UssdLauncher.cancelSession();
       print('USSD session cancelled');
       setState(() {
