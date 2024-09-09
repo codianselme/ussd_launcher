@@ -1,21 +1,21 @@
 # ussd_launcher
-Un plugin Flutter pour lancer des requêtes USSD et gérer des sessions USSD multi-étapes sur Android directement depuis votre application.
+A Flutter plugin to launch USSD requests and manage multi-step USSD sessions on Android directly from your application.
 
 
-## Fonctionnalités
-- Lancement de requêtes USSD simples
-- Gestion de sessions USSD multi-étapes
-- Vérification et demande des permissions d'accessibilité nécessaires
-- Compatibilité avec les appareils Android (API level 26+)
+## Features
+- Launch simple USSD requests
+- Manage multi-step USSD sessions
+- Check and request necessary accessibility permissions
+- Compatibility with Android devices (API level 26+)
 
 
 ## Installation
-Ajoutez `ussd_launcher` comme dépendance dans votre fichier `pubspec.yaml` :
+Add `ussd_launcher` as a dependency in your `pubspec.yaml` file:
 
 
 ## Configuration
 ### Android
-Vous devrez ajouter les autorisations suivantes à votre fihier manifeste Android.
+You will need to add the following permissions to your Android manifest file.
 ```XML
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
@@ -24,8 +24,8 @@ Vous devrez ajouter les autorisations suivantes à votre fihier manifeste Androi
 ```
 
 
-### Pour Android multi-session ussd
-Ajoutez le service d'accessibilité de la boîte de dialogue USSD à votre application Android Manifest
+### For Android multi-session USSD
+Add the USSD dialog accessibility service to your Android Manifest
 ```XML
 <application>
 ...
@@ -44,8 +44,8 @@ Ajoutez le service d'accessibilité de la boîte de dialogue USSD à votre appli
 ```
 
 
-## Utilisation
-### Exemple
+## Usage
+### Example
 ```dart
 import 'package:flutter/material.dart';
 import 'package:ussd_launcher/ussd_launcher.dart';
@@ -287,18 +287,18 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
 }
 ```
 
-### Méthodes disponibles
-- `launchUssd`: Lance une requête USSD simple et retourne la réponse sous forme de chaîne de caractères. Compatible avec Android 8+ (SDK 26+).
+### Available Methods
+- `launchUssd`: Launches a simple USSD request and returns the response as a string. Compatible with Android 8+ (SDK 26+).
 
-- `multisessionUssd`: Lance une session USSD multi-étapes et retourne la réponse initiale.
+- `multisessionUssd`: Initiates a multi-step USSD session and returns the initial response.
 
-- `sendMessage`: Envoie un message dans une session USSD multi-étapes en cours.
+- `sendMessage`: Sends a message in an ongoing multi-step USSD session.
 
-- `cancelSession`: Termine la session USSD multi-étapes en cours.
+- `cancelSession`: Terminates the current multi-step USSD session.
 
-- `isAccessibilityPermissionEnabled`: Vérifie si les permissions d'accessibilité sont activées.
+- `isAccessibilityPermissionEnabled`: Checks if accessibility permissions are enabled.
 
-- `openAccessibilitySettings`: Ouvre les paramètres d'accessibilité de l'appareil.
+- `openAccessibilitySettings`: Opens the device's accessibility settings.
 
 
 <!-- 
@@ -310,23 +310,23 @@ UssdAdvanced.sendAdvancedUssd(code: "*173*2#", subscriptionId: -1);
 -->
 
 
-### Sélection de la carte SIM
-Vous pouvez sélectionner la carte SIM à utiliser en fournissant le `subscriptionId`. La valeur `-1` correspond au paramètre par défaut du téléphone. Cette fonctionnalité est compatible avec Android 6+ et utilise la valeur par défaut si le SDK est inférieur.
+### SIM Card Selection
+You can select the SIM card to use by providing the `subscriptionId`. The value `-1` corresponds to the phone's default setting. This feature is compatible with Android 6+ and uses the default value if the SDK is lower.
 
 
-## Remarques importantes
-- Ce plugin nécessite que le service d'accessibilité soit activé sur l'appareil Android pour fonctionner correctement.
-- Les sessions USSD multi-étapes peuvent varier selon les opérateurs mobiles et les pays.
-- Assurez-vous de gérer correctement les exceptions et les cas d'erreur dans votre application.
+## Important Notes
+- This plugin requires the accessibility service to be enabled on the Android device to function properly.
+- Multi-step USSD sessions may vary depending on mobile operators and countries.
+- Make sure to properly handle exceptions and error cases in your application.
 
 
 ## Limitations
-- Ce plugin fonctionne uniquement sur Android.
-- La compatibilité peut varier selon les versions d'Android et les fabricants d'appareils.
+- This plugin works only on Android.
+- Compatibility may vary depending on Android versions and device manufacturers.
 
 
 ## Contribution
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou à soumettre une pull request sur notre [dépôt GitHub](https://github.com/codianselme/ussd_launcher).
+Contributions are welcome! Feel free to open an issue or submit a pull request on our [GitHub repository](https://github.com/codianselme/ussd_launcher).
 
 
 <!-- 

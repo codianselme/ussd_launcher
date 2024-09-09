@@ -1,5 +1,5 @@
 name: ussd_launcher
-description: "Un plugin Flutter pour lancer des requêtes USSD et gérer des sessions USSD multi-étapes sur Android directement depuis votre application."
+description: "A Flutter plugin to launch USSD requests and manage multi-step USSD sessions on Android directly from your application."
 version: 1.0.1
 homepage:
 
