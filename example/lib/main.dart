@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+// import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ussd_launcher/ussd_launcher.dart';
 
@@ -12,6 +12,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: DefaultTabController(
         length: 2,
         child: Scaffold(
@@ -98,6 +99,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
   final TextEditingController _ussdController = TextEditingController();
   final List<TextEditingController> _optionControllers = [];
   String _dialogText = '';
+  bool _isLoading = false;
 
   void _printOptionControllers() {
     print('----------------Current _optionControllers content:');
@@ -107,39 +109,72 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
   }
 
   void _launchMultiSessionUssd() async {
+
+    setState(() {
+      _isLoading = true;
+      _dialogText = '';
+    });
+
     print('Launching multi-session USSD with code: ${_ussdController.text}');
-    _printOptionControllers();
+    // _printOptionControllers();
+
     try {
-      String? res1 =
-          await UssdLauncher.multisessionUssd(code: _ussdController.text);
+      String? res1 = await UssdLauncher.multisessionUssd(code: _ussdController.text);
       print('Initial USSD response (res1): $res1');
       setState(() {
         _dialogText = 'Initial Response: \n $res1';
       });
 
       // Attendre un peu avant d'envoyer la réponse
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 1));
 
-      String? res2 = await UssdLauncher.sendMessage("1");
-      print('USSD response after sending "1" (res2): $res2');
-      setState(() {
-        _dialogText += ' \n Response after sending "1": \n $res2';
-      });
+      // Parcourir toutes les options dynamiquement
+      for (var controller in _optionControllers) {
+        String? res = await UssdLauncher.sendMessage(controller.text);
 
-      if (kDebugMode) {
-        print('Cancelling USSD session');
+        print('USSD response after sending "1" (res2): $res');
+        setState(() {
+          _dialogText += ' \n Response after sending "1": \n $res';
+        });
+
+        // Attendre un peu avant d'envoyer la réponse
+        await Future.delayed(const Duration(seconds: 1));
+
+        _updateDialogText('\nResponse after sending "${controller.text}": \n $res');
+        
+        // Attendre 1 seconde entre chaque option
+        await Future.delayed(const Duration(seconds: 1));
       }
+
+      // String? res2 = await UssdLauncher.sendMessage("1");
+      
+
+      // if (kDebugMode) {
+      //   print('Cancelling USSD session');
+      // }
       await UssdLauncher.cancelSession();
+      _updateDialogText('\nSession cancelled');
       print('USSD session cancelled');
       setState(() {
         _dialogText += 'Session cancelled';
       });
     } catch (e) {
+      _updateDialogText('\nError: ${e.toString()}');
       print('Error in multi-session USSD: $e');
       setState(() {
         _dialogText = 'Error: ${e.toString()}';
       });
+    }finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
+  }
+
+  void _updateDialogText(String newText) {
+    setState(() {
+      _dialogText += newText;
+    });
   }
 
   void _addOptionField() {
