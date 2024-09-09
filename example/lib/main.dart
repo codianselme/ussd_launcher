@@ -101,26 +101,15 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
   String _dialogText = '';
   bool _isLoading = false;
 
-  void _printOptionControllers() {
-    print('----------------Current _optionControllers content:');
-    for (int i = 0; i < _optionControllers.length; i++) {
-      print('----------------Option ${i + 1}: ${_optionControllers[i].text}');
-    }
-  }
-
   void _launchMultiSessionUssd() async {
-
     setState(() {
       _isLoading = true;
       _dialogText = '';
     });
 
-    print('Launching multi-session USSD with code: ${_ussdController.text}');
-    // _printOptionControllers();
-
     try {
-      String? res1 = await UssdLauncher.multisessionUssd(code: _ussdController.text);
-      print('Initial USSD response (res1): $res1');
+      String? res1 =
+          await UssdLauncher.multisessionUssd(code: _ussdController.text);
       setState(() {
         _dialogText = 'Initial Response: \n $res1';
       });
@@ -129,42 +118,38 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
       await Future.delayed(const Duration(seconds: 1));
 
       // Parcourir toutes les options dynamiquement
-      for (var controller in _optionControllers) {
+      for (int index = 0; index < _optionControllers.length; index++) {
+        var controller = _optionControllers[index];
         String? res = await UssdLauncher.sendMessage(controller.text);
 
-        print('USSD response after sending "1" (res2): $res');
         setState(() {
-          _dialogText += ' \n Response after sending "1": \n $res';
+          _dialogText +=
+              ' \n Response after sending "1": \n ${controller.text}';
         });
 
         // Attendre un peu avant d'envoyer la réponse
         await Future.delayed(const Duration(seconds: 1));
 
-        _updateDialogText('\nResponse after sending "${controller.text}": \n $res');
-        
+        _updateDialogText(
+            '\nResponse after sending "${controller.text}": \n $res');
+
         // Attendre 1 seconde entre chaque option
         await Future.delayed(const Duration(seconds: 1));
       }
 
-      // String? res2 = await UssdLauncher.sendMessage("1");
-      
-
-      // if (kDebugMode) {
-      //   print('Cancelling USSD session');
-      // }
       await UssdLauncher.cancelSession();
       _updateDialogText('\nSession cancelled');
-      print('USSD session cancelled');
+
       setState(() {
         _dialogText += 'Session cancelled';
       });
     } catch (e) {
       _updateDialogText('\nError: ${e.toString()}');
-      print('Error in multi-session USSD: $e');
+
       setState(() {
         _dialogText = 'Error: ${e.toString()}';
       });
-    }finally {
+    } finally {
       setState(() {
         _isLoading = false;
       });
@@ -178,11 +163,9 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
   }
 
   void _addOptionField() {
-    print('----------------Adding new option field');
     setState(() {
       _optionControllers.add(TextEditingController());
     });
-    _printOptionControllers();
   }
 
   // Supprime le dernier champ d'option
@@ -214,11 +197,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
                     controller: entry.value,
                     decoration: InputDecoration(
                         labelText: 'Enter Option ${entry.key + 1}'),
-                    onChanged: (value) {
-                      print(
-                          '----------------Option ${entry.key + 1} changed to: $value');
-                      _printOptionControllers();
-                    },
+                    onChanged: (value) {},
                   ),
                 )),
             const SizedBox(height: 16),
@@ -252,8 +231,6 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
 
   @override
   void dispose() {
-    print('----------------Disposing MultiSessionTab');
-    _printOptionControllers();
     for (var controller in _optionControllers) {
       controller.dispose();
     }
