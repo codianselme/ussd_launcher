@@ -335,11 +335,11 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
                     "displayName" to subscriptionInfo.displayName,
                     "carrierName" to subscriptionInfo.carrierName,
                     "number" to subscriptionInfo.number, 
-                    "slotIndex" to subscriptionInfo.simSlotIndex
+                    "slotIndex" to subscriptionInfo.simSlotIndex,
                     "countryIso" to subscriptionInfo.countryIso, // Ajout du code ISO du pays
                     "carrierId" to subscriptionInfo.carrierId, // Ajout de l'ID du transporteur
                     "isEmbedded" to subscriptionInfo.isEmbedded, // Indique si c'est une eSIM
-                    "iccId" to subscriptionInfo.iccId // ICCID de la carte SIM
+                    "iccId" to subscriptionInfo.iccId, // ICCID de la carte SIM
                 )
             }
             result.success(simCards)
