@@ -80,7 +80,8 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
 
   Future<void> _sendUssdRequest() async {
     try {
-      final response = await UssdLauncher.launchUssd(_controller.text, _selectedSimId);
+      final response =
+          await UssdLauncher.launchUssd(_controller.text, _selectedSimId);
       setState(() {
         _ussdResponse = response;
       });
@@ -181,10 +182,9 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
     });
 
     try {
-    
       String? res1 = await UssdLauncher.multisessionUssd(
-        code : _ussdController.text,
-        subscriptionId : (_selectedSimId ?? -1),
+        code: _ussdController.text,
+        subscriptionId: (_selectedSimId ?? -1),
       );
       _updateDialogText('Initial Response: \n $res1');
 
