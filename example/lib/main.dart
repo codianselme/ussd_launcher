@@ -62,7 +62,6 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
     if (status.isGranted) {
       try {
         final simCards = await UssdLauncher.getSimCards();
-        print("simCards --------------------- $simCards");
 
         setState(() {
           _simCards = simCards;
