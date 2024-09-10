@@ -49,6 +49,8 @@ Add the USSD dialog accessibility service to your Android Manifest
 ```dart
 import 'package:flutter/material.dart';
 import 'package:ussd_launcher/ussd_launcher.dart';
+// ignore: depend_on_referenced_packages
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(const MyApp());
@@ -95,10 +97,39 @@ class SingleSessionTab extends StatefulWidget {
 class _SingleSessionTabState extends State<SingleSessionTab> {
   final TextEditingController _controller = TextEditingController();
   String _ussdResponse = '';
+  List<Map<String, dynamic>> _simCards = [];
+  int? _selectedSimId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSimCards();
+  }
+
+  Future<void> _loadSimCards() async {
+    var status = await Permission.phone.request();
+    if (status.isGranted) {
+      try {
+        final simCards = await UssdLauncher.getSimCards();
+        print("simCards --------------------- $simCards");
+
+        setState(() {
+          _simCards = simCards;
+          if (simCards.isNotEmpty) {
+            _selectedSimId = simCards[0]['subscriptionId'] as int?;
+          }
+        });
+      } catch (e) {
+        print("Error loading SIM cards: $e");
+      }
+    } else {
+      print("Phone permission is not granted");
+    }
+  }
 
   Future<void> _sendUssdRequest() async {
     try {
-      final response = await UssdLauncher.launchUssd(_controller.text);
+      final response = await UssdLauncher.launchUssd(_controller.text, _selectedSimId);
       setState(() {
         _ussdResponse = response;
       });
@@ -115,6 +146,26 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
+          // Real-time display of subscriptionId
+          Text('Selected SIM ID: ${_selectedSimId ?? "None"}',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          DropdownButton<int>(
+            value: _selectedSimId,
+            hint: const Text('Select SIM'),
+            items: _simCards.map((sim) {
+              return DropdownMenuItem<int>(
+                value: sim['subscriptionId'],
+                child: Text("${sim['displayName']} (${sim['carrierName']})"),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedSimId = value;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
           TextField(
             controller: _controller,
             decoration: const InputDecoration(
@@ -148,6 +199,29 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
   final List<TextEditingController> _optionControllers = [];
   String _dialogText = '';
   bool _isLoading = false;
+  List<Map<String, dynamic>> _simCards = [];
+  int? _selectedSimId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSimCards();
+  }
+
+  Future<void> _loadSimCards() async {
+    var status = await Permission.phone.request();
+    if (status.isGranted) {
+      final simCards = await UssdLauncher.getSimCards();
+      setState(() {
+        _simCards = simCards;
+        if (simCards.isNotEmpty) {
+          _selectedSimId = simCards[0]['subscriptionId'];
+        }
+      });
+    } else {
+      print("Phone permission is not granted");
+    }
+  }
 
   void _launchMultiSessionUssd() async {
     setState(() {
@@ -156,47 +230,26 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
     });
 
     try {
-      String? res1 =
-          await UssdLauncher.multisessionUssd(code: _ussdController.text);
-      setState(() {
-        _dialogText = 'Initial Response: \n $res1';
-      });
+    
+      String? res1 = await UssdLauncher.multisessionUssd(
+        code : _ussdController.text,
+        subscriptionId : (_selectedSimId ?? -1),
+      );
+      _updateDialogText('Initial Response: \n $res1');
 
-      // Attendre un peu avant d'envoyer la réponse
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(seconds: 2));
 
-      // Parcourir toutes les options dynamiquement
-      for (int index = 0; index < _optionControllers.length; index++) {
-        var controller = _optionControllers[index];
+      for (var controller in _optionControllers) {
         String? res = await UssdLauncher.sendMessage(controller.text);
-
-        setState(() {
-          _dialogText +=
-              ' \n Response after sending "1": \n ${controller.text}';
-        });
-
-        // Attendre un peu avant d'envoyer la réponse
-        await Future.delayed(const Duration(seconds: 1));
-
         _updateDialogText(
             '\nResponse after sending "${controller.text}": \n $res');
-
-        // Attendre 1 seconde entre chaque option
         await Future.delayed(const Duration(seconds: 1));
       }
 
       await UssdLauncher.cancelSession();
       _updateDialogText('\nSession cancelled');
-
-      setState(() {
-        _dialogText += 'Session cancelled';
-      });
     } catch (e) {
       _updateDialogText('\nError: ${e.toString()}');
-
-      setState(() {
-        _dialogText = 'Error: ${e.toString()}';
-      });
     } finally {
       setState(() {
         _isLoading = false;
@@ -216,12 +269,10 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
     });
   }
 
-  // Supprime le dernier champ d'option
   void _removeOptionField() {
     if (_optionControllers.isNotEmpty) {
       setState(() {
-        _optionControllers.last
-            .dispose(); // Libère les ressources du contrôleur
+        _optionControllers.last.dispose();
         _optionControllers.removeLast();
       });
     }
@@ -234,20 +285,40 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
       child: SingleChildScrollView(
         child: Column(
           children: [
+            // Real-time display of subscriptionId
+            Text('Selected SIM ID: ${_selectedSimId ?? "None"}',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            DropdownButton<int>(
+              value: _selectedSimId,
+              hint: const Text('Select SIM'),
+              items: _simCards.map((sim) {
+                return DropdownMenuItem<int>(
+                  value: sim['subscriptionId'],
+                  child: Text("${sim['displayName']} (${sim['carrierName']})"),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedSimId = value;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: _ussdController,
               decoration: const InputDecoration(labelText: 'Enter USSD Code'),
             ),
-            const SizedBox(height: 16),
-            ..._optionControllers.asMap().entries.map((entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: TextField(
-                    controller: entry.value,
-                    decoration: InputDecoration(
-                        labelText: 'Enter Option ${entry.key + 1}'),
-                    onChanged: (value) {},
-                  ),
-                )),
+            ..._optionControllers.asMap().entries.map((entry) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: TextField(
+                  controller: entry.value,
+                  decoration:
+                      InputDecoration(labelText: 'Option ${entry.key + 1}'),
+                ),
+              );
+            }),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -265,7 +336,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _launchMultiSessionUssd,
+              onPressed: _isLoading ? null : _launchMultiSessionUssd,
               child: const Text('Launch Multi-Session USSD'),
             ),
             const SizedBox(height: 16),
@@ -282,13 +353,14 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
     for (var controller in _optionControllers) {
       controller.dispose();
     }
+    _ussdController.dispose();
     super.dispose();
   }
 }
 ```
 
 ### Available Methods
-- `launchUssd`: Launches a simple USSD request and returns the response as a string. Compatible with Android 8+ (SDK 26+).
+- `launchUssd`: Launches a simple USSD request and returns the response as a string. Compatible with Android 8+ (SDK 26+). Il est aussi possible d'envoyer la demande en une seul fois, c'est à dire : `UssdLauncher.launchUssd("*173*2#", -1);`
 
 - `multisessionUssd`: Initiates a multi-step USSD session and returns the initial response.
 

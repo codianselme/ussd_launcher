@@ -1,3 +1,8 @@
+## 1.2.0
+
+* list and information about the sim cards present in the phone
+* launch an operation from a selected sim
+
 ## 1.1.0
 
 * Launch simple USSD requests

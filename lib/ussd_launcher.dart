@@ -1,16 +1,20 @@
 import 'package:flutter/services.dart';
+import 'dart:developer' as developer;
 
 class UssdLauncher {
   // Canal de méthode pour communiquer avec le code natif
   static const MethodChannel _channel = MethodChannel('ussd_launcher');
 
   // Lance une requête USSD en session unique
-  static Future<String> launchUssd(String ussdCode, {int subscriptionId = -1}) async {
+  // static Future<String> launchUssd(String ussdCode, {int subscriptionId = -1}) async {
+  static Future<String> launchUssd(String ussdCode, int? subscriptionId) async {
     try {
-      final String response = await _channel.invokeMethod('sendUssdRequest', { 
+
+      final String response = await _channel.invokeMethod('sendUssdRequest', {
         'ussdCode': ussdCode,
         'subscriptionId': subscriptionId,
       });
+
       return response;
     } on PlatformException catch (e) {
       throw Exception('Failed to send USSD request: ${e.message}');
@@ -18,12 +22,17 @@ class UssdLauncher {
   }
 
   // Lance une session USSD multi-étapes
-  static Future<String?> multisessionUssd({required String code, int subscriptionId = -1}) async {
+  static Future<String?> multisessionUssd({String? code, int? subscriptionId}) async {
     try {
+      print("................................... code : $code");
+      developer.log("................. subscriptionId : $subscriptionId");
+
       final String? result = await _channel.invokeMethod('multisessionUssd', {
         'ussdCode': code,
         'subscriptionId': subscriptionId,
       });
+
+      developer.log("............................. result : $result");
       return result;
     } on PlatformException catch (e) {
       print("Failed to launch multi-session USSD: '${e.message}'.");
@@ -34,7 +43,10 @@ class UssdLauncher {
   // Envoie un message/une commande dans une session USSD multi-étapes
   static Future<String?> sendMessage(String message) async {
     try {
-      final String? result = await _channel.invokeMethod('sendMessage', {'message': message});
+      final String? result =
+          await _channel.invokeMethod('sendMessage', {'message': message});
+      developer.log("............................. message : $message");
+      developer.log("............................. result : $result");
       return result;
     } on PlatformException catch (e) {
       print("Failed to send USSD message: '${e.message}'.");
@@ -65,7 +77,8 @@ class UssdLauncher {
   // Vérifie si l'autorisation d'accessibilité est activée
   static Future<bool> isAccessibilityPermissionEnabled() async {
     try {
-      final bool isEnabled = await _channel.invokeMethod('isAccessibilityPermissionEnabled');
+      final bool isEnabled =
+          await _channel.invokeMethod('isAccessibilityPermissionEnabled');
       return isEnabled;
     } on PlatformException catch (e) {
       print("Failed to check accessibility permission: '${e.message}'.");
@@ -80,6 +93,16 @@ class UssdLauncher {
     } on PlatformException catch (e) {
       print("Failed to open accessibility settings: '${e.message}'.");
       rethrow;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getSimCards() async {
+    try {
+      final List<dynamic> result = await _channel.invokeMethod('getSimCards');
+      return result.map((item) => Map<String, dynamic>.from(item)).toList();
+    } on PlatformException catch (e) {
+      print("Failed to get SIM cards info: '${e.message}'.");
+      return [];
     }
   }
 }
