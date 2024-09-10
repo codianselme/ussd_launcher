@@ -7,6 +7,8 @@ A Flutter plugin to launch USSD requests and manage multi-step USSD sessions on 
 - Manage multi-step USSD sessions
 - Check and request necessary accessibility permissions
 - Compatibility with Android devices (API level 26+)
+- Handle USSD responses and errors gracefully.
+- Open accessibility settings if the service is not enabled.
 
 
 ## Installation
