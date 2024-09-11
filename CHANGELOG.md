@@ -1,8 +1,12 @@
+## 1.2.7
+
+* Bug fixed
+
 ## 1.2.2
 
 * Sim Cards data updated
 
-## 1.2.1 
+## 1.2.1
 
 * list and information about the sim cards present in the phone
 * launch an operation from a selected sim

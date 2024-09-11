@@ -1,10 +1,12 @@
 import 'package:flutter/services.dart';
+import 'dart:developer' as developer;
 
 class UssdLauncher {
   // Canal de méthode pour communiquer avec le code natif
   static const MethodChannel _channel = MethodChannel('ussd_launcher');
 
-  // Lance une requête USSD en session unique
+  // Lance une requête USSD en session unique 
+  // static Future<String> launchUssd(String ussdCode, {int subscriptionId = -1}) async {
   static Future<String> launchUssd(String ussdCode, int? subscriptionId) async {
     try {
       final String response = await _channel.invokeMethod('sendUssdRequest', {
@@ -22,11 +24,15 @@ class UssdLauncher {
   static Future<String?> multisessionUssd(
       {String? code, int? subscriptionId}) async {
     try {
+      print("................................... code : $code");
+      developer.log("................. subscriptionId : $subscriptionId");
+
       final String? result = await _channel.invokeMethod('multisessionUssd', {
         'ussdCode': code,
         'subscriptionId': subscriptionId,
       });
 
+      developer.log("............................. result : $result");
       return result;
     } on PlatformException catch (e) {
       print("Failed to launch multi-session USSD: '${e.message}'.");
@@ -39,7 +45,8 @@ class UssdLauncher {
     try {
       final String? result =
           await _channel.invokeMethod('sendMessage', {'message': message});
-
+      developer.log("............................. message : $message");
+      developer.log("............................. result : $result");
       return result;
     } on PlatformException catch (e) {
       print("Failed to send USSD message: '${e.message}'.");

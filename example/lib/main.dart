@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ussd_launcher/ussd_launcher.dart';
-// ignore: depend_on_referenced_packages
+// ignore: depend_on_referenced_packages 
 import 'package:permission_handler/permission_handler.dart';
 
 void main() {
@@ -62,6 +62,7 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
     if (status.isGranted) {
       try {
         final simCards = await UssdLauncher.getSimCards();
+        print("simCards --------------------- $simCards");
 
         setState(() {
           _simCards = simCards;

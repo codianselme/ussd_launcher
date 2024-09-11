@@ -21,9 +21,9 @@ Add `ussd_launcher` as a dependency in your `pubspec.yaml` file:
 You will need to add the following permissions to your Android manifest file.
 ```XML
     <uses-permission android:name="android.permission.CALL_PHONE" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+<uses-permission android:name="android.permission.READ_PHONE_STATE" />
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+<uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
 ```
 
 
@@ -31,18 +31,18 @@ You will need to add the following permissions to your Android manifest file.
 Add the USSD dialog accessibility service to your Android Manifest
 ```XML
 <application>
-...
-  <service
-      android:name="com.kavina.ussd_launcher.UssdLauncherPlugin"
-      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-      android:exported="false">
-      <intent-filter>
-          <action android:name="android.accessibilityservice.AccessibilityService" />
-      </intent-filter>
-      <meta-data
-          android:name="android.accessibilityservice"
-          android:resource="@xml/ussd_service" />
-  </service>
+    ...
+    <service
+        android:name="com.kavina.ussd_launcher.UssdAccessibilityService"
+        android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+        android:exported="false">
+        <intent-filter>
+            <action android:name="android.accessibilityservice.AccessibilityService" />
+        </intent-filter>
+        <meta-data
+            android:name="android.accessibilityservice"
+            android:resource="@xml/accessibility_service_config" />
+    </service>
 </application>
 ```
 
@@ -233,7 +233,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
     });
 
     try {
-    
+
       String? res1 = await UssdLauncher.multisessionUssd(
         code : _ussdController.text,
         subscriptionId : (_selectedSimId ?? -1),
@@ -318,7 +318,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
                 child: TextField(
                   controller: entry.value,
                   decoration:
-                      InputDecoration(labelText: 'Option ${entry.key + 1}'),
+                  InputDecoration(labelText: 'Option ${entry.key + 1}'),
                 ),
               );
             }),
@@ -332,7 +332,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
                 ),
                 ElevatedButton(
                   onPressed:
-                      _optionControllers.isNotEmpty ? _removeOptionField : null,
+                  _optionControllers.isNotEmpty ? _removeOptionField : null,
                   child: const Text('Remove Option'),
                 ),
               ],
@@ -409,5 +409,3 @@ Contributions are welcome! Feel free to open an issue or submit a pull request o
 
 Ce projet est sous licence MIT. Voir le fichier [LICENSE](https://github.com/codianselme/ussd_launcher/blob/main/LICENSE) pour plus de détails.
 -->
-
-

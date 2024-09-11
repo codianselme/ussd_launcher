@@ -17,13 +17,12 @@ import androidx.annotation.RequiresApi
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler 
 import io.flutter.plugin.common.MethodChannel.Result
 import java.util.ArrayDeque
 import android.view.KeyEvent
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
-
 import androidx.annotation.NonNull
 import android.content.Context
 import android.telephony.TelephonyManager
@@ -32,6 +31,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import android.telephony.SubscriptionManager
 import android.telephony.SubscriptionInfo
+
 
 
 
@@ -73,7 +73,7 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         when (call.method) {
             "sendUssdRequest" -> {
                 val ussdCode = call.argument<String>("ussdCode")
-                val subscriptionId = call.argument<Int>("subscriptionId")
+                val subscriptionId = call.argument<Int>("subscriptionId") ?: -1
                 if (ussdCode != null) {
                     sendUssdRequest(ussdCode, subscriptionId, result)
                 } else {
@@ -114,78 +114,44 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         }
     }
 
-    private fun sendUssdRequest(ussdCode: String, subscriptionId: Int?, result: Result) {
-    val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-    val targetTelephonyManager = if (subscriptionId != null && subscriptionId != -1) {
-        telephonyManager.createForSubscriptionId(subscriptionId)
-    } else {
-        telephonyManager
-    }
+    // Envoie une requête USSD
+    private fun sendUssdRequest(ussdCode: String, subscriptionId: Int, result: MethodChannel.Result) {
+        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val callback = object : TelephonyManager.UssdResponseCallback() {
-            override fun onReceiveUssdResponse(telephonyManager: TelephonyManager, request: String, response: CharSequence) {
-                result.success(response.toString())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val telephonyManager = if (subscriptionId != -1) {
+                context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                telephonyManager.createForSubscriptionId(subscriptionId)
+            } else {
+                context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
             }
 
-            override fun onReceiveUssdResponseFailed(telephonyManager: TelephonyManager, request: String, failureCode: Int) {
-                when (failureCode) {
-                    TelephonyManager.USSD_RETURN_FAILURE -> result.error("USSD_FAILED", "USSD request failed", null)
-                    else -> result.error("UNKNOWN_ERROR", "Unknown error occurred", null)
+            val callback = object : TelephonyManager.UssdResponseCallback() {
+                override fun onReceiveUssdResponse(telephonyManager: TelephonyManager, request: String, response: CharSequence) {
+                    result.success(response.toString())
+                }
+
+                override fun onReceiveUssdResponseFailed(telephonyManager: TelephonyManager, request: String, failureCode: Int) {
+                    when (failureCode) {
+                        TelephonyManager.USSD_RETURN_FAILURE -> result.error("USSD_FAILED", "USSD request failed", null)
+                        else -> result.error("UNKNOWN_ERROR", "Unknown error occurred", null)
+                    }
                 }
             }
-        }
 
-        try {
-            targetTelephonyManager.sendUssdRequest(ussdCode, callback, null)
-        } catch (e: SecurityException) {
-            result.error("PERMISSION_DENIED", "Permission denied: ${e.message}", null)
-        } catch (e: Exception) {
-            result.error("UNEXPECTED_ERROR", "Unexpected error: ${e.message}", null)
+            GlobalScope.launch(Dispatchers.Main) {
+                try {
+                    telephonyManager.sendUssdRequest(ussdCode, callback, null)
+                } catch (e: SecurityException) {
+                    result.error("PERMISSION_DENIED", "Permission denied: ${e.message}", null)
+                } catch (e: Exception) {
+                    result.error("UNEXPECTED_ERROR", "Unexpected error: ${e.message}", null)
+                }
+            }
+        } else {
+            result.error("UNSUPPORTED_VERSION", "USSD requests are not supported on this Android version", null)
         }
-    } else {
-        result.error("UNSUPPORTED_VERSION", "USSD requests are not supported on this Android version", null)
     }
-}
-
-    // Envoie une requête USSD
-    // private fun sendUssdRequest(ussdCode: String, subscriptionId: Int?, result: MethodChannel.Result) {
-    //     val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-// 
-    //     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-    //         val telephonyManager = if (subscriptionId != -1) {
-    //             context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-    //             telephonyManager.createForSubscriptionId(subscriptionId)
-    //         } else {
-    //             context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-    //         }
-// 
-    //         val callback = object : TelephonyManager.UssdResponseCallback() {
-    //             override fun onReceiveUssdResponse(telephonyManager: TelephonyManager, request: String, response: CharSequence) {
-    //                 result.success(response.toString())
-    //             }
-// 
-    //             override fun onReceiveUssdResponseFailed(telephonyManager: TelephonyManager, request: String, failureCode: Int) {
-    //                 when (failureCode) {
-    //                     TelephonyManager.USSD_RETURN_FAILURE -> result.error("USSD_FAILED", "USSD request failed", null)
-    //                     else -> result.error("UNKNOWN_ERROR", "Unknown error occurred", null)
-    //                 }
-    //             }
-    //         }
-// 
-    //         GlobalScope.launch(Dispatchers.Main) {
-    //             try {
-    //                 telephonyManager.sendUssdRequest(ussdCode, callback, null)
-    //             } catch (e: SecurityException) {
-    //                 result.error("PERMISSION_DENIED", "Permission denied: ${e.message}", null)
-    //             } catch (e: Exception) {
-    //                 result.error("UNEXPECTED_ERROR", "Unexpected error: ${e.message}", null)
-    //             }
-    //         }
-    //     } else {
-    //         result.error("UNSUPPORTED_VERSION", "USSD requests are not supported on this Android version", null)
-    //     }
-    // }
 
     private fun launchUssd(ussdCode: String, result: Result) {
         isMultiSession = false
@@ -195,80 +161,18 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
         context.startActivity(intent)
         result.success(null)
     }
-    
+
+
+    // Lance une session USSD multi-étapes
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun multisessionUssd(ussdCode: String, subscriptionId: Int, result: Result) {
-        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        telephonyManager.createForSubscriptionId(subscriptionId)
-    
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ussdUri = formatUssdCode(ussdCode)
-            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-    
-            // Lancer l'appel USSD
-            try {
-                telecomManager.placeCall(ussdUri, null)
-                pendingResult = result // Stocker le résultat pour une utilisation ultérieure
-            } catch (e: SecurityException) {
-                result.error("PERMISSION_DENIED", "Permission denied: ${e.message}", null)
-            } catch (e: Exception) {
-                result.error("UNEXPECTED_ERROR", "Unexpected error: ${e.message}", null)
-            }
-        } else {
-            result.error("UNSUPPORTED_VERSION", "USSD requests are not supported on this Android version", null)
-        }
+        println("Launching multi-session USSD: $ussdCode")
+        isMultiSession = true
+        pendingResult = result
+        val ussdUri = formatUssdCode(ussdCode)
+        val telecomManager = context.getSystemService(android.content.Context.TELECOM_SERVICE) as TelecomManager
+        telecomManager.placeCall(ussdUri, null)
     }
-
-    // Lance une session USSD multi-étapes
-    // @RequiresApi(Build.VERSION_CODES.O)
-    // private fun multisessionUssd(ussdCode: String, subscriptionId: Int, result: Result) {
-    //     println("Launching multi-session USSD: $ussdCode")
-    //     isMultiSession = true
-    //     pendingResult = result
-    //     val ussdUri = formatUssdCode(ussdCode)
-    //     println("ussdUri: $ussdUri")
-    //     val telecomManager = context.getSystemService(android.content.Context.TELECOM_SERVICE) as TelecomManager
-    //     telecomManager.placeCall(ussdUri, null)
-    // }
-
-    // Lance une session USSD multi-étapes
-    // @RequiresApi(Build.VERSION_CODES.O)
-    // private fun multisessionUssd(ussdCode: String, subscriptionId: Int, result: Result) {
-    //     println("Launching multi-session USSD: $ussdCode")
-    //     isMultiSession = true
-    //     pendingResult = result
-    //     val ussdUri = formatUssdCode(ussdCode)
-    //     println("ussdUri: $ussdUri")
-    //     
-    //     // Utiliser le subscriptionId pour créer le téléphonie manager
-    //     val telephonyManager = context.getSystemService(android.content.Context.TELEPHONY_SERVICE) as TelephonyManager
-    //     val targetTelephonyManager = telephonyManager.createForSubscriptionId(subscriptionId)
-    //     
-    //     // Passer l'ussdUri à placeCall
-    //     targetTelephonyManager.placeCall(ussdUri, null)
-    // }
-
-    // Lance une session USSD multi-étapes
-    // @RequiresApi(Build.VERSION_CODES.O)
-    // private fun multisessionUssd(ussdCode: String, subscriptionId: Int, result: Result) {
-    //     println("Launching multi-session USSD: $ussdCode")
-    //     isMultiSession = true
-    //     pendingResult = result
-    //     val ussdUri = formatUssdCode(ussdCode)
-    //     println("ussdUri: $ussdUri")
-    //     
-    //     // Utiliser le subscriptionId pour créer le téléphonie manager
-    //     val telephonyManager = context.getSystemService(android.content.Context.TELEPHONY_SERVICE) as TelephonyManager
-    //     val targetTelephonyManager = telephonyManager.createForSubscriptionId(subscriptionId)
-    //     
-    //     // Utiliser un Intent pour lancer l'appel USSD
-    //     val intent = Intent(Intent.ACTION_CALL, ussdUri)
-    //     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-    //     context.startActivity(intent)
-// 
-    //     println("-----------------telephonyManager: $telephonyManager")
-    //     println("-----------------targetTelephonyManager: $targetTelephonyManager")
-    //     println("-----------------intent: $intent")
-    // }
 
     // Envoie un message dans une session USSD multi-étapes
     private fun sendMessage(message: String, result: Result) {
@@ -327,14 +231,14 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
     private fun getSimCards(result: Result) {
         val subscriptionManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
         val activeSubscriptionInfoList = subscriptionManager.activeSubscriptionInfoList
-        
+
         if (activeSubscriptionInfoList != null) {
             val simCards = activeSubscriptionInfoList.map { subscriptionInfo ->
                 mapOf(
                     "subscriptionId" to subscriptionInfo.subscriptionId,
                     "displayName" to subscriptionInfo.displayName,
                     "carrierName" to subscriptionInfo.carrierName,
-                    "number" to subscriptionInfo.number, 
+                    "number" to subscriptionInfo.number,
                     "slotIndex" to subscriptionInfo.simSlotIndex,
                     "countryIso" to subscriptionInfo.countryIso, // Ajout du code ISO du pays
                     "carrierId" to subscriptionInfo.carrierId, // Ajout de l'ID du transporteur
@@ -380,13 +284,13 @@ class UssdAccessibilityService : AccessibilityService() {
     private fun performReply() {
         val message = pendingMessage ?: return
         println("Performing reply with message: $message")
-        
+
         val rootInActiveWindow = this.rootInActiveWindow ?: return
         println("Root in active window: $rootInActiveWindow")
 
         // Chercher le champ de saisie
         val editText = findInputField(rootInActiveWindow)
-        
+
         if (editText != null) {
             // Insérer le texte
             val bundle = Bundle()
@@ -420,8 +324,8 @@ class UssdAccessibilityService : AccessibilityService() {
     // Trouve le bouton de confirmation dans l'interface USSD
     private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val buttons = findNodesByClassName(root, "android.widget.Button")
-        return buttons.firstOrNull { 
-            it.text?.toString()?.toLowerCase() in listOf("send", "ok", "submit", "confirmer", "envoyer") 
+        return buttons.firstOrNull {
+            it.text?.toString()?.toLowerCase() in listOf("send", "ok", "submit", "confirmer", "envoyer")
         }
     }
 
@@ -510,8 +414,8 @@ class UssdAccessibilityService : AccessibilityService() {
         println("Event class name: ${event.className}")
         println("Event package name: ${event.packageName}")
         println("Event text: ${event.text}")
-        
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
+
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
             val nodeInfo = event.source
             if (nodeInfo != null) {
@@ -522,12 +426,12 @@ class UssdAccessibilityService : AccessibilityService() {
                 if (ussdMessage != null) {
                     UssdLauncherPlugin.onUssdResult(ussdMessage)
                 }
-                
+
                 // Tenter d'insérer le message en attente, s'il y en a un
                 if (pendingMessage != null) {
                     performReply()
                 }
-                
+
                 nodeInfo.recycle()
             }
         }
