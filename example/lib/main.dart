@@ -61,8 +61,7 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
     if (status.isGranted) {
       try {
         final simCards = await UssdLauncher.getSimCards();
-        print("simCards --------------------- $simCards");
-
+        // print("simCards --------------------- $simCards");
         setState(() {
           _simCards = simCards;
           if (simCards.isNotEmpty) {
@@ -246,9 +245,6 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
 
   @override
   Widget build(BuildContext context) {
-
-    print("............................ _ussdMessages : $_ussdMessages");
-
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SingleChildScrollView(
