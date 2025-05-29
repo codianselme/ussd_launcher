@@ -91,7 +91,7 @@ class UssdAccessibilityService : AccessibilityService() {
     private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val buttons = findNodesByClassName(root, "android.widget.Button")
         return buttons.firstOrNull {
-            it.text?.toString()?.toLowerCase() in listOf("send", "ok", "submit", "confirmer", "envoyer")
+            it.text?.toString()?.lowercase() in listOf("send", "ok", "submit", "confirmer", "envoyer")
         }
     }
 

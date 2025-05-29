@@ -195,7 +195,7 @@ class UssdMultiSession(private val context: Context) {
         if (accessibilityEnabled == 1) {
             val services = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
             if (services != null) {
-                return services.toLowerCase().contains(context.packageName.toLowerCase())
+                return services.lowercase().contains(context.packageName.lowercase())
             }
         }
         return false
