@@ -286,6 +286,24 @@ class UssdMultiSession(private val context: Context) {
         }
     }
 
+    
+    
+    fun sendNextOptionManually(result: Result? = null) {
+        if (!isRunning) {
+            result?.error("NO_ACTIVE_SESSION", "No active USSD session", null)
+            return
+        }
+    
+        if (ussdOptionsQueue.isEmpty()) {
+            result?.success("NO_MORE_OPTIONS")
+            return
+        }
+    
+        sendNextUssdOption()
+        result?.success("OPTION_SENT")
+    }
+
+
     fun cancelSession(result: Result? = null) {
         if (isRunning) {
             isRunning = false
