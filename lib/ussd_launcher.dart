@@ -157,6 +157,16 @@ class UssdLauncher {
     }
   }
 
+
+  static Future<String?> sendNextOption() async {
+    try {
+      return await _channel.invokeMethod<String>('sendNextOption');
+    } on PlatformException catch (e) {
+      rethrow;
+    }
+  }
+
+
   /// Opens the system overlay permission settings.
   ///
   /// Use this to guide users to enable the "Draw over other apps" permission.
