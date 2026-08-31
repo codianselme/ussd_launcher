@@ -52,7 +52,7 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
 
   @override
   void initState() {
-    super.initState(); 
+    super.initState();
     _loadSimCards();
   }
 
@@ -131,7 +131,8 @@ class _SingleSessionTabState extends State<SingleSessionTab> {
           const Text('Réponse USSD :'),
           Text(
             _ussdResponse,
-            style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.blue, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -155,10 +156,11 @@ class MultiSessionTab extends StatefulWidget {
 class _MultiSessionTabState extends State<MultiSessionTab> {
   final TextEditingController _ussdController = TextEditingController();
   final List<TextEditingController> _optionControllers = [];
-  List<String> _ussdMessages = []; // Liste pour stocker les messages USSD
+  final List<String> _ussdMessages = []; // Tous les messages USSD reçus
   bool _isLoading = false;
   List<Map<String, dynamic>> _simCards = [];
   int? _selectedSlotIndex;
+  final ScrollController _scrollController = ScrollController();
 
   String _sessionStatus = '';
 
@@ -175,10 +177,27 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
   void _onUssdMessageReceived(String message) {
     print("Message USSD reçu: $message"); // Journalisation
     setState(() {
-      // Ne garder que le dernier message
-      _ussdMessages = [message];
-      if (message.contains("completed") || message.contains("cancelled")) {
+      // Vérifier si c'est un message de fin de session
+      if (message.contains("SESSION_COMPLETED") ||
+          message.contains("completed") ||
+          message.contains("cancelled")) {
         _sessionStatus = "Session USSD terminée.";
+        _isLoading = false;
+      } else {
+        // Ajouter le message à la liste avec numéro d'étape
+        final stepNumber = _ussdMessages.length + 1;
+        _ussdMessages.add("── Étape $stepNumber ──\n$message");
+      }
+    });
+
+    // Scroll automatique vers le bas
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
@@ -198,35 +217,68 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
     }
   }
 
+  Future<void> _checkOverlayPermission() async {
+    final isGranted = await UssdLauncher.isOverlayPermissionGranted();
+    if (!isGranted) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Permission requise'),
+            content: const Text(
+                'Pour masquer le dialogue USSD, l\'application a besoin de la permission "Superposition sur d\'autres applications".'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  UssdLauncher.openOverlaySettings();
+                },
+                child: const Text('Ouvrir les paramètres'),
+              ),
+            ],
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permission d\'overlay déjà accordée')),
+        );
+      }
+    }
+  }
+
   void _launchMultiSessionUssd() async {
     setState(() {
       _isLoading = true;
-      _ussdMessages.clear(); // Réinitialiser la liste au début d'une nouvelle session
+      _ussdMessages.clear(); // Réinitialiser au début d'une nouvelle session
       _sessionStatus = '';
     });
 
     try {
-      List<String> options = _optionControllers.map((controller) => controller.text).toList();
+      List<String> options =
+          _optionControllers.map((controller) => controller.text).toList();
 
       await UssdLauncher.multisessionUssd(
         code: _ussdController.text,
         slotIndex: (_selectedSlotIndex ?? 0),
         options: options,
+        overlayMessage: 'Traitement en cours, veuillez patienter...',
       );
       // Aucun besoin de gérer 'res1' ici, les messages sont reçus via le listener
     } catch (e) {
-      _updateUssdMessages('\nErreur : ${e.toString()}');
+      setState(() {
+        _ussdMessages.add('❌ Erreur : ${e.toString()}');
+      });
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
-  }
-
-  void _updateUssdMessages(String newText) {
-    setState(() {
-      _ussdMessages.add(newText);
-    });
   }
 
   void _addOptionField() {
@@ -274,7 +326,8 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
             const SizedBox(height: 16),
             TextField(
               controller: _ussdController,
-              decoration: const InputDecoration(labelText: 'Entrer le code USSD'),
+              decoration:
+                  const InputDecoration(labelText: 'Entrer le code USSD'),
             ),
             ..._optionControllers.asMap().entries.map((entry) {
               return Padding(
@@ -282,7 +335,8 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
                 child: TextField(
                   controller: entry.value,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: 'Option ${entry.key + 1}'),
+                  decoration:
+                      InputDecoration(labelText: 'Option ${entry.key + 1}'),
                 ),
               );
             }),
@@ -295,10 +349,17 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
                   child: const Text('Ajouter Option'),
                 ),
                 ElevatedButton(
-                  onPressed: _optionControllers.isNotEmpty ? _removeOptionField : null,
+                  onPressed:
+                      _optionControllers.isNotEmpty ? _removeOptionField : null,
                   child: const Text('Retirer Option'),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _checkOverlayPermission,
+              icon: const Icon(Icons.layers),
+              label: const Text('Vérifier Permission Overlay'),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -306,34 +367,51 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
               child: const Text('Lancer USSD Multi-Session'),
             ),
             const SizedBox(height: 16),
-            const Text('Réponses USSD :'),
+            const Text('Réponse USSD :',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             Container(
-              height: 200,
+              width: double.infinity,
+              constraints: const BoxConstraints(minHeight: 150, maxHeight: 300),
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.blueAccent),
                 borderRadius: BorderRadius.circular(8.0),
+                color: Colors.grey[50],
               ),
-              padding: const EdgeInsets.all(8.0),
-              child: ListView.builder(
-                itemCount: _ussdMessages.length,
-                itemBuilder: (context, index) {
-                  final isLastMessage = index == _ussdMessages.length - 1;
-                  return Text(
-                    _ussdMessages[index],
-                    style: TextStyle(
-                      color: isLastMessage ? Colors.red : Colors.blue,
-                      fontWeight: isLastMessage ? FontWeight.bold : FontWeight.normal,
-                      fontSize: isLastMessage ? 16 : 14,
+              padding: const EdgeInsets.all(12.0),
+              child: _ussdMessages.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'En attente de réponse...',
+                        style: TextStyle(
+                            color: Colors.grey, fontStyle: FontStyle.italic),
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: _scrollController,
+                      shrinkWrap: true,
+                      itemCount: _ussdMessages.length,
+                      separatorBuilder: (context, index) => const Divider(
+                        height: 16,
+                        color: Colors.blueAccent,
+                      ),
+                      itemBuilder: (context, index) {
+                        return Text(
+                          _ussdMessages[index],
+                          style: const TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
             const SizedBox(height: 16),
             if (_sessionStatus.isNotEmpty)
               Text(
                 _sessionStatus,
-                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.green, fontWeight: FontWeight.bold),
               ),
           ],
         ),
@@ -348,6 +426,7 @@ class _MultiSessionTabState extends State<MultiSessionTab> {
       controller.dispose();
     }
     _ussdController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }

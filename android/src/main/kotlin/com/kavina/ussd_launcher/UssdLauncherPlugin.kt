@@ -11,25 +11,25 @@ import io.flutter.plugin.common.MethodChannel.Result
 import android.os.Handler
 import android.os.Looper
 
-class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
-    private lateinit var channel : MethodChannel
+class UssdLauncherPlugin : FlutterPlugin, MethodCallHandler {
+    private lateinit var channel: MethodChannel
     private lateinit var context: Context
     private lateinit var ussdSessionUnique: UssdSessionUnique
     private lateinit var ussdMultiSession: UssdMultiSession
 
     companion object {
-        private var channel: MethodChannel? = null
+        private var methodChannel: MethodChannel? = null
         private val handler = Handler(Looper.getMainLooper())
     
         fun onUssdResult(result: String) {
             handler.post {
-                println("Envoi du message USSD via le canal: $result")
-                channel?.invokeMethod("onUssdMessageReceived", result)
+                println("UssdLauncherPlugin: Sending USSD result to Flutter: $result")
+                methodChannel?.invokeMethod("onUssdMessageReceived", result)
             }
         }
     
-        fun setMethodChannel(methodChannel: MethodChannel) {
-            channel = methodChannel
+        private fun setMethodChannel(channel: MethodChannel) {
+            methodChannel = channel
         }
     }
 
@@ -44,93 +44,134 @@ class UssdLauncherPlugin: FlutterPlugin, MethodCallHandler {
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
-            "sendUssdRequest" -> {               
-                val ussdCode = call.argument<String>("ussdCode")
-                val subscriptionId = call.argument<Int>("subscriptionId") ?: -1
-                if (ussdCode != null) {
-                    ussdSessionUnique.sendUssdRequest(ussdCode, subscriptionId, result)
-                } else {
-                    result.error("INVALID_ARGUMENT", "USSD code is required", null)
-                }
+            "sendUssdRequest" -> handleSendUssdRequest(call, result)
+            "multisessionUssd" -> handleMultisessionUssd(call, result)
+            "getSimCards" -> ussdSessionUnique.getSimCards(result)
+            "isAccessibilityEnabled" -> result.success(isAccessibilityServiceEnabled())
+            "openAccessibilitySettings" -> {
+                openAccessibilitySettings()
+                result.success(null)
             }
-            "multisessionUssd" -> {
-                if (!isAccessibilityServiceEnabled()) {
-                    openAccessibilitySettings()
-                    return
-                }
-    
-                val ussdCode = call.argument<String>("ussdCode")
-                val slotIndex = call.argument<Int>("slotIndex") ?: 0
-                val options = call.argument<List<String>>("options") ?: emptyList()
-                if (ussdCode != null) {
-                    ussdMultiSession.callUSSDWithMenu(ussdCode, slotIndex, options, createHashMap(), object : UssdMultiSession.CallbackInvoke {
-                        override fun responseInvoke(message: String) {
-                            onUssdResult(message)
-                        }
-                        override fun over(message: String) {
-                            onUssdResult(message) // Envoyer le message via le canal de méthode
-                            result.success(null)   // Terminer la méthode avec succès
-                        }
-                    })
-                } else {
-                    result.error("INVALID_ARGUMENT", "USSD code is required", null)
-                }
-            }
-            // "sendMessage" -> {
-            //     val message = call.argument<String>("message")
-            //     if (message != null) {
-            //         ussdMultiSession.sendMessage(message, result)
-            //     } else {
-            //         result.error("INVALID_ARGUMENT", "Message is required", null)
-            //     }
-            // }
-            // "cancelSession" -> {
-            //     ussdMultiSession.cancelSession(result)
-            // }
-            // "isAccessibilityPermissionEnabled" -> {
-            //     result.success(isAccessibilityServiceEnabled())
-            // }
-            // "openAccessibilitySettings" -> {
-            //     openAccessibilitySettings()
-            //     result.success(null)
-            // }
-            "getSimCards" -> {
-                ussdSessionUnique.getSimCards(result)
+            "cancelSession" -> ussdMultiSession.cancelSession(result)
+            "isOverlayPermissionGranted" -> result.success(UssdOverlayService.canDrawOverlay(context))
+            "openOverlaySettings" -> {
+                UssdOverlayService.openOverlaySettings(context)
+                result.success(null)
             }
             else -> result.notImplemented()
         }
     }
 
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val accessibilityEnabled = Settings.Secure.getInt(
-            context.contentResolver,
-            Settings.Secure.ACCESSIBILITY_ENABLED, 0
-        )
-        if (accessibilityEnabled == 1) {
-            val service = "${context.packageName}/${UssdAccessibilityService::class.java.canonicalName}"
-            val settingValue = Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    private fun handleSendUssdRequest(call: MethodCall, result: Result) {
+        if (!isAccessibilityServiceEnabled()) {
+            openAccessibilitySettings()
+            result.error(
+                "ACCESSIBILITY_NOT_ENABLED", 
+                "Please enable accessibility service for USSD Launcher", 
+                null
             )
-            return settingValue?.contains(service) == true
+            return
         }
-        return false
+        
+        val ussdCode = call.argument<String>("ussdCode")
+        val subscriptionId = call.argument<Int>("subscriptionId") ?: -1
+        
+        if (ussdCode.isNullOrEmpty()) {
+            result.error("INVALID_ARGUMENT", "USSD code is required", null)
+            return
+        }
+        
+        ussdSessionUnique.sendUssdRequest(ussdCode, subscriptionId, result)
+    }
+
+    private fun handleMultisessionUssd(call: MethodCall, result: Result) {
+        if (!isAccessibilityServiceEnabled()) {
+            openAccessibilitySettings()
+            result.error(
+                "ACCESSIBILITY_NOT_ENABLED", 
+                "Please enable accessibility service for USSD Launcher", 
+                null
+            )
+            return
+        }
+
+        val ussdCode = call.argument<String>("ussdCode")
+        val slotIndex = call.argument<Int>("slotIndex") ?: 0
+        val options = call.argument<List<String>>("options") ?: emptyList()
+        val overlayMessage = call.argument<String>("overlayMessage")
+        
+        // Optional configurable delays
+        call.argument<Int>("initialDelayMs")?.let { 
+            ussdMultiSession.initialDelayMs = it.toLong() 
+        }
+        call.argument<Int>("optionDelayMs")?.let { 
+            ussdMultiSession.optionDelayMs = it.toLong() 
+        }
+        
+        // Custom overlay message
+        overlayMessage?.let {
+            ussdMultiSession.overlayMessage = it
+        }
+        
+        if (ussdCode.isNullOrEmpty()) {
+            result.error("INVALID_ARGUMENT", "USSD code is required", null)
+            return
+        }
+        
+        ussdMultiSession.callUSSDWithMenu(
+            ussdCode, 
+            slotIndex, 
+            options, 
+            UssdMultiSession.createDefaultHashMap(), 
+            object : UssdMultiSession.CallbackInvoke {
+                override fun responseInvoke(message: String) {
+                    onUssdResult(message)
+                }
+                override fun over(message: String) {
+                    onUssdResult(message)
+                    result.success(null)
+                }
+            }
+        )
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        return try {
+            val accessibilityEnabled = Settings.Secure.getInt(
+                context.contentResolver,
+                Settings.Secure.ACCESSIBILITY_ENABLED, 
+                0
+            )
+            
+            if (accessibilityEnabled == 1) {
+                val service = "${context.packageName}/${UssdAccessibilityService::class.java.canonicalName}"
+                val settingValue = Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                )
+                settingValue?.contains(service) == true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            println("UssdLauncherPlugin: Error checking accessibility: ${e.message}")
+            false
+        }
     }
 
     private fun openAccessibilitySettings() {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        context.startActivity(intent)
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            println("UssdLauncherPlugin: Error opening accessibility settings: ${e.message}")
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
-    }
-
-    private fun createHashMap(): HashMap<String, HashSet<String>> {
-        val map = HashMap<String, HashSet<String>>()
-        map["KEY_ERROR"] = hashSetOf("Error message")
-        map["KEY_LOGIN"] = hashSetOf("Login message")
-        return map
+        methodChannel = null
+        ussdSessionUnique.dispose()
     }
 }

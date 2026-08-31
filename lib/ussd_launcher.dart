@@ -1,11 +1,22 @@
 import 'package:flutter/services.dart';
-import 'dart:developer' as developer;
 
+/// A Flutter plugin to launch USSD requests and manage multi-step USSD sessions on Android.
 class UssdLauncher {
-  // Canal de méthode pour communiquer avec le code natif
   static const MethodChannel _channel = MethodChannel('ussd_launcher');
 
-// Lance une requête USSD en session unique 
+  /// Launches a single-session USSD request.
+  ///
+  /// [ussdCode] - The USSD code to dial (e.g., "*123#")
+  /// [subscriptionId] - The SIM subscription ID (-1 for default SIM)
+  ///
+  /// Returns the USSD response as a String, or null if no response.
+  /// On Android 5-7, returns "USSD_INITIATED_LEGACY" as the response
+  /// comes through the message listener.
+  ///
+  /// Throws [PlatformException] if:
+  /// - ACCESSIBILITY_NOT_ENABLED: Accessibility service is not enabled
+  /// - PERMISSION_DENIED: Required permissions not granted
+  /// - USSD_FAILED: USSD request failed
   static Future<String?> sendUssdRequest({
     required String ussdCode,
     required int subscriptionId,
@@ -17,111 +28,143 @@ class UssdLauncher {
       });
       return response;
     } on PlatformException catch (e) {
-      print("Erreur lors de l'envoi de la requête USSD : ${e.message}");
-      return null;
-    }
-  }
-
-  // Lance une requête USSD en session unique 
-  // static Future<String> launchUssd(String ussdCode, {int subscriptionId = -1}) async {
-  // static Future<String> launchUssd(String ussdCode, int? subscriptionId) async {
-  //   try {
-  //     final String response = await _channel.invokeMethod('sendUssdRequest', {
-  //       'ussdCode': ussdCode,
-  //       'subscriptionId': subscriptionId,
-  //     });
-
-  //     return response;
-  //   } on PlatformException catch (e) {
-  //     throw Exception('Failed to send USSD request: ${e.message}');
-  //   }
-  // }
-
-  // Lance une session USSD multi-étapes avec des options de menu
-  static Future<String?> multisessionUssd(
-      {String? code, int? slotIndex, List<String>? options}) async {
-    try {
-      print("................................... code : $code");
-      developer.log("................. slotIndex : $slotIndex");
-      developer.log("................. options : $options");
-
-      final String? result = await _channel.invokeMethod('multisessionUssd', {
-        'ussdCode': code,
-        'slotIndex': slotIndex,
-        'options': options,
-      });
-
-      developer.log("............................. result : $result");
-      return result;
-    } on PlatformException catch (e) {
-      print("Échec du lancement de la session USSD multi-étapes : '${e.message}'.");
+      print("UssdLauncher: Error sending USSD request: ${e.message}");
       rethrow;
     }
   }
 
-  // Envoie un message/une commande dans une session USSD multi-étapes
-  // static Future<String?> sendMessage(String message) async {
-  //   try {
-  //     final String? result =
-  //         await _channel.invokeMethod('sendMessage', {'message': message});
-  //     developer.log("............................. message : $message");
-  //     developer.log("............................. result : $result");
-  //     return result;
-  //   } on PlatformException catch (e) {
-  //     print("Failed to send USSD message: '${e.message}'.");
-  //     rethrow;
-  //   }
-  // }
+  /// Launches a multi-step USSD session with automatic menu navigation.
+  ///
+  /// [code] - The initial USSD code to dial
+  /// [slotIndex] - The SIM slot index (0 for first SIM, 1 for second)
+  /// [options] - List of menu options to select automatically
+  /// [initialDelayMs] - Delay before sending first option (default: 3500ms)
+  /// [optionDelayMs] - Delay between options (default: 2000ms)
+  /// [overlayMessage] - Custom message to display on the overlay during the session
+  ///
+  /// Use [setUssdMessageListener] to receive USSD responses during the session.
+  static Future<void> multisessionUssd({
+    required String code,
+    required int slotIndex,
+    List<String> options = const [],
+    int? initialDelayMs,
+    int? optionDelayMs,
+    String? overlayMessage,
+  }) async {
+    try {
+      await _channel.invokeMethod('multisessionUssd', {
+        'ussdCode': code,
+        'slotIndex': slotIndex,
+        'options': options,
+        if (initialDelayMs != null) 'initialDelayMs': initialDelayMs,
+        if (optionDelayMs != null) 'optionDelayMs': optionDelayMs,
+        if (overlayMessage != null) 'overlayMessage': overlayMessage,
+      });
+    } on PlatformException catch (e) {
+      print("UssdLauncher: Error in multi-session USSD: ${e.message}");
+      rethrow;
+    }
+  }
 
-  // Annule la session USSD en cours
-  // static Future<void> cancelSession() async {
-  //   try {
-  //     await _channel.invokeMethod('cancelSession');
-  //   } on PlatformException catch (e) {
-  //     print("Failed to cancel USSD session: '${e.message}'.");
-  //     rethrow;
-  //   }
-  // }
-
-  /// Définit un listener pour les messages USSD reçus depuis le backend.
-  static void setUssdMessageListener(Function(String) listener) {
+  /// Sets a listener for USSD messages received during a session.
+  ///
+  /// [listener] - Callback function that receives USSD message strings
+  ///
+  /// This is essential for multi-session USSD to receive intermediate responses.
+  static void setUssdMessageListener(void Function(String message) listener) {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onUssdMessageReceived') {
-        final String ussdMessage = call.arguments;
+        final String ussdMessage = call.arguments as String;
         listener(ussdMessage);
       }
     });
   }
 
-  // Vérifie si l'autorisation d'accessibilité est activée
-  // static Future<bool> isAccessibilityPermissionEnabled() async {
-  //   try {
-  //     final bool isEnabled =
-  //         await _channel.invokeMethod('isAccessibilityPermissionEnabled');
-  //     return isEnabled;
-  //   } on PlatformException catch (e) {
-  //     print("Failed to check accessibility permission: '${e.message}'.");
-  //     return false;
-  //   }
-  // }
+  /// Removes the USSD message listener.
+  static void removeUssdMessageListener() {
+    _channel.setMethodCallHandler(null);
+  }
 
-  // Ouvre les paramètres d'accessibilité
-  // static Future<void> openAccessibilitySettings() async {
-  //   try {
-  //     await _channel.invokeMethod('openAccessibilitySettings');
-  //   } on PlatformException catch (e) {
-  //     print("Failed to open accessibility settings: '${e.message}'.");
-  //     rethrow;
-  //   }
-  // }
-
+  /// Gets information about available SIM cards.
+  ///
+  /// Returns a list of maps with SIM card information:
+  /// - subscriptionId: Unique ID for the subscription
+  /// - displayName: User-visible name of the SIM
+  /// - carrierName: Name of the carrier
+  /// - number: Phone number (may be empty)
+  /// - slotIndex: Physical slot index (0 or 1)
+  /// - countryIso: Country code
+  /// - carrierId: Carrier ID (Android 9+)
+  /// - isEmbedded: Whether it's an eSIM (Android 9+)
+  /// - iccId: SIM card ICCID (may require additional permissions)
   static Future<List<Map<String, dynamic>>> getSimCards() async {
     try {
       final List<dynamic> result = await _channel.invokeMethod('getSimCards');
       return result.map((item) => Map<String, dynamic>.from(item)).toList();
     } on PlatformException catch (e) {
-      print("Failed to get SIM cards info: '${e.message}'.");
+      print("UssdLauncher: Error getting SIM cards: ${e.message}");
       return [];
+    }
+  }
+
+  /// Checks if the accessibility service is enabled.
+  ///
+  /// Returns true if the USSD Launcher accessibility service is enabled.
+  static Future<bool> isAccessibilityEnabled() async {
+    try {
+      final bool isEnabled =
+          await _channel.invokeMethod('isAccessibilityEnabled');
+      return isEnabled;
+    } on PlatformException catch (e) {
+      print("UssdLauncher: Error checking accessibility: ${e.message}");
+      return false;
+    }
+  }
+
+  /// Opens the system accessibility settings.
+  ///
+  /// Use this to guide users to enable the USSD Launcher accessibility service.
+  static Future<void> openAccessibilitySettings() async {
+    try {
+      await _channel.invokeMethod('openAccessibilitySettings');
+    } on PlatformException catch (e) {
+      print("UssdLauncher: Error opening accessibility settings: ${e.message}");
+    }
+  }
+
+  /// Cancels the current USSD session.
+  ///
+  /// Only effective if a multi-session USSD is currently active.
+  static Future<void> cancelSession() async {
+    try {
+      await _channel.invokeMethod('cancelSession');
+    } on PlatformException catch (e) {
+      print("UssdLauncher: Error cancelling session: ${e.message}");
+    }
+  }
+
+  /// Checks if the overlay permission (SYSTEM_ALERT_WINDOW) is granted.
+  ///
+  /// This permission is required to show the overlay during USSD sessions.
+  static Future<bool> isOverlayPermissionGranted() async {
+    try {
+      final bool isGranted =
+          await _channel.invokeMethod('isOverlayPermissionGranted');
+      return isGranted;
+    } on PlatformException catch (e) {
+      print("UssdLauncher: Error checking overlay permission: ${e.message}");
+      return false;
+    }
+  }
+
+  /// Opens the system overlay permission settings.
+  ///
+  /// Use this to guide users to enable the "Draw over other apps" permission.
+  static Future<void> openOverlaySettings() async {
+    try {
+      await _channel.invokeMethod('openOverlaySettings');
+    } on PlatformException catch (e) {
+      print("UssdLauncher: Error opening overlay settings: ${e.message}");
     }
   }
 }
